@@ -26,6 +26,12 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Job Tracker API is running' });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+// Export for Vercel serverless
+export default app;
+
+// Only start server locally (not on Vercel)
+if (process.env.VERCEL !== 'true') {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+  });
+}

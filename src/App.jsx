@@ -4,10 +4,10 @@ import {
   Clock, CheckCircle, XCircle, Star, Filter, RefreshCw,
   TrendingUp, AlertCircle, Send, Eye, Trash2, Edit3,
   Plus, ChevronDown, ChevronUp, Zap, Target, FileText,
-  Linkedin, Github, ExternalLink, Loader2
+  Linkedin, Github, ExternalLink, Loader2, Upload
 } from 'lucide-react'
 
-// Sample job data
+// Sample job data for initial display
 const SAMPLE_JOBS = [
   {
     id: 1,
@@ -131,6 +131,9 @@ const STATUS_COLORS = {
   "Pending": "bg-gray-500"
 }
 
+// API base URL
+const API_URL = '/api'
+
 function App() {
   const [jobs, setJobs] = useState(SAMPLE_JOBS)
   const [searchTerm, setSearchTerm] = useState("")
@@ -143,6 +146,34 @@ function App() {
   const [applications, setApplications] = useState([])
   const [isSearching, setIsSearching] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [cvUploaded, setCvUploaded] = useState(false)
+
+  // Fetch applications from API on mount
+  useEffect(() => {
+    fetchApplications()
+  }, [])
+
+  const fetchApplications = async () => {
+    try {
+      const response = await fetch(`${API_URL}/applications`)
+      if (response.ok) {
+        const data = await response.json()
+        setApplications(data)
+        
+        // Mark jobs as applied if in applications
+        const appliedIds = data.map(app => app.id)
+        setJobs(jobs.map(job => ({
+          ...job,
+          applied: appliedIds.includes(job.id)
+        })))
+      }
+    } catch (error) {
+      console.log('Using local data mode')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   // Stats
   const stats = {
@@ -163,25 +194,73 @@ function App() {
   })
 
   // Apply to job
-  const applyToJob = (job) => {
-    setJobs(jobs.map(j => j.id === job.id ? { ...j, applied: true } : j))
-    setApplications([...applications, {
+  const applyToJob = async (job) => {
+    const applicationData = {
       ...job,
       status: "Applied",
       appliedDate: new Date().toISOString().split('T')[0],
       notes: ""
-    }])
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/applications`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(applicationData)
+      })
+      
+      if (response.ok) {
+        const newApp = await response.json()
+        setApplications([...applications, newApp])
+        setJobs(jobs.map(j => j.id === job.id ? { ...j, applied: true } : j))
+      } else {
+        // Fallback to local state
+        setApplications([...applications, applicationData])
+        setJobs(jobs.map(j => j.id === job.id ? { ...j, applied: true } : j))
+      }
+    } catch (error) {
+      // Fallback to local state
+      setApplications([...applications, applicationData])
+      setJobs(jobs.map(j => j.id === job.id ? { ...j, applied: true } : j))
+    }
   }
 
   // Update application status
-  const updateStatus = (jobId, newStatus) => {
-    setApplications(applications.map(app => 
-      app.id === jobId ? { ...app, status: newStatus } : app
-    ))
+  const updateStatus = async (jobId, newStatus) => {
+    try {
+      const response = await fetch(`${API_URL}/applications`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: jobId, status: newStatus })
+      })
+      
+      if (response.ok) {
+        const updated = await response.json()
+        setApplications(applications.map(app => 
+          app.id === jobId ? { ...app, status: newStatus } : app
+        ))
+      } else {
+        setApplications(applications.map(app => 
+          app.id === jobId ? { ...app, status: newStatus } : app
+        ))
+      }
+    } catch (error) {
+      setApplications(applications.map(app => 
+        app.id === jobId ? { ...app, status: newStatus } : app
+      ))
+    }
   }
 
   // Delete application
-  const deleteApplication = (jobId) => {
+  const deleteApplication = async (jobId) => {
+    try {
+      await fetch(`${API_URL}/applications?id=${jobId}`, {
+        method: 'DELETE'
+      })
+    } catch (error) {
+      // Continue with local delete
+    }
+    
     setApplications(applications.filter(app => app.id !== jobId))
     setJobs(jobs.map(j => j.id === jobId ? { ...j, applied: false } : j))
   }
@@ -192,6 +271,12 @@ function App() {
     setTimeout(() => {
       setIsSearching(false)
     }, 1500)
+  }
+
+  // Upload CV (simulated)
+  const handleUploadCV = () => {
+    setCvUploaded(true)
+    alert("CV uploaded successfully! Your profile is ready for auto-matching.")
   }
 
   return (
@@ -220,6 +305,13 @@ function App() {
               {applications.length > 0 && (
                 <span className="badge">{applications.length}</span>
               )}
+            </button>
+            <button 
+              className={`nav-btn ${activeTab === 'profile' ? 'active' : ''}`}
+              onClick={() => setActiveTab("profile")}
+            >
+              <FileText size={18} />
+              <span>Profile</span>
             </button>
           </nav>
         </div>
@@ -491,6 +583,67 @@ function App() {
             </div>
           </div>
         )}
+
+        {/* Profile Tab */}
+        {activeTab === "profile" && (
+          <div className="profile-section fade-in">
+            <div className="section-header">
+              <h2>Your Profile</h2>
+              <p>Upload your CV for auto-matching jobs</p>
+            </div>
+
+            <div className="profile-content">
+              <div className="cv-upload-card">
+                <div className="cv-icon">
+                  <FileText size={48} />
+                </div>
+                <h3>Upload Your CV</h3>
+                <p>Upload your resume in PDF or TXT format for automatic job matching</p>
+                
+                {!cvUploaded ? (
+                  <button className="upload-btn" onClick={handleUploadCV}>
+                    <Upload size={20} />
+                    Upload CV
+                  </button>
+                ) : (
+                  <div className="upload-success">
+                    <CheckCircle size={24} />
+                    <span>CV Uploaded Successfully!</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="profile-stats">
+                <div className="profile-stat">
+                  <div className="profile-stat-header">
+                    <Target size={20} />
+                    <span>Match Score</span>
+                  </div>
+                  <div className="profile-stat-value">85%</div>
+                  <p>Based on your skills and job preferences</p>
+                </div>
+                
+                <div className="profile-stat">
+                  <div className="profile-stat-header">
+                    <Briefcase size={20} />
+                    <span>Jobs Matched</span>
+                  </div>
+                  <div className="profile-stat-value">{filteredJobs.filter(j => j.remote).length}</div>
+                  <p>Jobs matching your profile</p>
+                </div>
+                
+                <div className="profile-stat">
+                  <div className="profile-stat-header">
+                    <Zap size={20} />
+                    <span>Auto-Apply</span>
+                  </div>
+                  <div className="profile-stat-value">{stats.applied}</div>
+                  <p>Applications sent automatically</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* CSS Styles */}
@@ -694,6 +847,11 @@ function App() {
 
         .spin {
           animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
 
         .filters-panel {
@@ -1117,6 +1275,128 @@ function App() {
 
         .primary-btn:hover {
           background: var(--primary-dark);
+        }
+
+        /* Profile Section */
+        .profile-section {
+          display: flex;
+          flex-direction: column;
+          gap: 2rem;
+        }
+
+        .profile-content {
+          display: flex;
+          flex-direction: column;
+          gap: 2rem;
+        }
+
+        .cv-upload-card {
+          background: var(--card-dark);
+          border-radius: 16px;
+          padding: 3rem;
+          text-align: center;
+          border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .cv-icon {
+          width: 80px;
+          height: 80px;
+          margin: 0 auto 1.5rem;
+          background: rgba(16, 185, 129, 0.1);
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--primary);
+        }
+
+        .cv-upload-card h3 {
+          font-size: 1.5rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .cv-upload-card p {
+          color: var(--gray-400);
+          margin-bottom: 1.5rem;
+        }
+
+        .upload-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.75rem 2rem;
+          background: var(--primary);
+          border: none;
+          border-radius: 8px;
+          color: white;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .upload-btn:hover {
+          background: var(--primary-dark);
+          transform: translateY(-2px);
+        }
+
+        .upload-success {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          color: var(--success);
+          font-weight: 500;
+        }
+
+        .profile-stats {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 1.5rem;
+        }
+
+        .profile-stat {
+          background: var(--card-dark);
+          border-radius: 12px;
+          padding: 1.5rem;
+          border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .profile-stat-header {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          color: var(--gray-400);
+          margin-bottom: 0.5rem;
+        }
+
+        .profile-stat .profile-stat-value {
+          font-size: 2.5rem;
+          font-weight: 700;
+          margin-bottom: 0.5rem;
+        }
+
+        .profile-stat p {
+          color: var(--gray-500);
+          font-size: 0.9rem;
+        }
+
+        /* Animations */
+        .fade-in {
+          animation: fadeIn 0.3s ease-out;
+        }
+
+        .slide-in {
+          animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateX(-10px); }
+          to { opacity: 1; transform: translateX(0); }
         }
 
         @media (max-width: 768px) {
