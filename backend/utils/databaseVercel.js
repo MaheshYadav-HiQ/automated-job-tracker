@@ -1,156 +1,124 @@
-// Vercel-compatible database utility using in-memory storage
-// For production, use Vercel KV (Redis) or Vercel Postgres
+import { scrapeAllSources, getJobDetails } from '../services/scraper.js';
+import { createJob, getCV, saveCV, getJobs as getJobsFromDb, createApplication, getApplications, updateApplicationStatus } from './database.js';
+import { parseCV, calculateMatchScore } from './cvParser.js';
+import { shouldAutoApply, generateCoverLetter as generateCL } from '../services/autoApplier.js';
 
-// In-memory storage (persists while server is running)
-let applications = [];
+// In-memory storage for Vercel serverless
 let jobs = [];
 let cv = null;
+let applications = [];
 
-// Generate unique ID
-function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
-}
-
-// Applications
-export function getApplications(filters = {}) {
-  let result = [...applications];
-  
-  if (filters.status) {
-    result = result.filter(app => app.status === filters.status);
+// Initialize from database on cold start
+function initialize() {
+  if (jobs.length === 0) {
+    try {
+      const dbJobs = getJobsFromDb();
+      if (dbJobs && dbJobs.length > 0) {
+        jobs = dbJobs;
+      }
+    } catch (e) {
+      console.log('Initializing fresh jobs array');
+    }
   }
-  
-  return result.sort((a, b) => new Date(b.appliedDate) - new Date(a.appliedDate));
 }
 
-export function createApplication(data) {
+// Get all jobs
+export function getJobs() {
+  initialize();
+  return jobs;
+}
+
+// Get CV
+export function getCV() {
+  return cv;
+}
+
+// Save CV
+export function saveCVData(parsedCV) {
+  cv = parsedCV;
+  return cv;
+}
+
+// Get applications
+export function getApplicationsList() {
+  return applications;
+}
+
+// Create application
+export function createApplicationData(appData) {
   const application = {
-    id: generateId(),
-    ...data,
-    status: data.status || 'Pending',
-    appliedDate: data.appliedDate || new Date().toISOString().split('T')[0],
-    notes: data.notes || '',
-    createdAt: new Date().toISOString()
+    id: `app_${Date.now()}`,
+    ...appData,
+    status: appData.status || 'pending',
+    applied_date: new Date().toISOString(),
+    created_at: new Date().toISOString()
   };
   applications.push(application);
   return application;
 }
 
-export function updateApplicationStatus(id, status) {
-  const index = applications.findIndex(app => app.id === id);
-  if (index !== -1) {
-    applications[index].status = status;
-    return applications[index];
+// Update application status
+export function updateApplicationStatusData(id, status) {
+  const app = applications.find(a => a.id === id);
+  if (app) {
+    app.status = status;
+    app.updated_at = new Date().toISOString();
   }
-  return null;
+  return app;
 }
 
-export function deleteApplication(id) {
-  const index = applications.findIndex(app => app.id === id);
-  if (index !== -1) {
-    return applications.splice(index, 1)[0];
-  }
-  return null;
-}
-
-// Jobs
-export function getJobs(filters = {}) {
-  let result = [...jobs];
+// Scrape jobs from multiple sources
+export async function scrapeJobs(query, location, domains = []) {
+  const scrapedJobs = await scrapeAllSources(query, location, domains);
   
-  if (filters.domain) {
-    result = result.filter(job => job.domain === filters.domain);
-  }
-  
-  if (filters.remote !== undefined) {
-    result = result.filter(job => job.remote === filters.remote);
-  }
-  
-  if (filters.minMatchScore) {
-    result = result.filter(job => (job.match_score || 0) >= filters.minMatchScore);
-  }
-  
-  return result.sort((a, b) => new Date(b.posted) - new Date(a.posted));
-}
-
-export function createJob(data) {
-  const job = {
-    id: generateId(),
-    ...data,
-    posted: data.posted || new Date().toISOString(),
-    match_score: data.match_score || 0,
-    applied: false
-  };
-  
-  // Avoid duplicates
-  const existing = jobs.find(j => j.url === job.url);
-  if (existing) {
-    return existing;
+  // Save jobs to in-memory storage
+  for (const job of scrapedJobs) {
+    const jobWithId = {
+      id: `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      ...job,
+      scraped_at: new Date().toISOString(),
+      requirements: [],
+      match_score: 0
+    };
+    
+    // Check for duplicates
+    const exists = jobs.some(j => 
+      j.title.toLowerCase() === job.title.toLowerCase() && 
+      j.company.toLowerCase() === job.company.toLowerCase()
+    );
+    
+    if (!exists) {
+      jobs.push(jobWithId);
+    }
   }
   
-  jobs.push(job);
-  return job;
+  return jobs;
 }
 
-export function getJobById(id) {
-  return jobs.find(job => job.id === id);
+// Get job details from URL
+export async function getJobDetailsFromUrl(url, source) {
+  return await getJobDetails(url, source);
 }
 
-// CV
-export function getCV() {
-  return cv;
+// Parse CV text
+export function parseCVText(cvText) {
+  return parseCV(cvText);
 }
 
-export function saveCV(data) {
-  cv = {
-    ...data,
-    savedAt: new Date().toISOString()
-  };
-  return cv;
+// Calculate match score
+export function calculateJobMatchScore(job, cvSkills) {
+  return calculateMatchScore(cvSkills, job.requirements || []);
 }
 
-// Auto-apply logic
-export function shouldAutoApply(job, cv) {
-  if (!cv || !cv.skills || !job.requirements) {
-    return { shouldApply: false, reason: 'No CV or job requirements' };
-  }
-  
-  const jobRequirements = job.requirements.map(r => r.toLowerCase());
-  const cvSkills = cv.skills.map(s => s.toLowerCase());
-  
-  // Find matching skills
-  const matchingSkills = cvSkills.filter(skill => 
-    jobRequirements.some(req => req.includes(skill) || skill.includes(req))
-  );
-  
-  // Calculate match score
-  const matchScore = Math.round((matchingSkills.length / jobRequirements.length) * 100);
-  
-  // Determine if should apply
-  const shouldApply = matchScore >= 30 && matchingSkills.length >= 1;
-  
-  return {
-    shouldApply,
-    matchScore,
-    matchingSkills,
-    reason: shouldApply 
-      ? `Matches ${matchingSkills.length} of ${jobRequirements.length} requirements (${matchScore}%)`
-      : matchScore < 30 ? 'Match score too low' : 'No matching skills found'
-  };
+// Auto-apply check
+export function checkShouldAutoApply(job, cvData, targetDomains = []) {
+  return shouldAutoApply(job, cvData, targetDomains);
 }
 
 // Generate cover letter
-export function generateCoverLetter(job, cv) {
-  const skillsList = cv.skills?.slice(0, 5).join(', ') || 'various technologies';
-  
-  return `Dear Hiring Manager,
-
-I am writing to express my strong interest in the ${job.title} position at ${job.company}. With my background in ${skillsList}, I believe I would be a valuable addition to your team.
-
-${cv.summary || 'I am a dedicated professional with experience in my field and a passion for continuous learning.'}
-
-I am excited about the opportunity to contribute to ${job.company} and would welcome the chance to discuss how my skills align with your needs.
-
-Thank you for considering my application. I look forward to hearing from you.
-
-Best regards,
-${cv.name || 'Applicant'}`;
+export function generateCoverLetter(job, cvData) {
+  return generateCL(job, cvData);
 }
+
+// Re-export from database for compatibility
+export { createJob, getCV as getCVFromDb, saveCV, getJobsFromDb };
