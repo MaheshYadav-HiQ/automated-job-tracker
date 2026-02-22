@@ -1,71 +1,79 @@
-# JobBot Pro - Automated Job Search & Application Tracker
+# Automated Job Tracker
 
-A modern, automated job search and application tracking system built with React. Find your dream job, track applications, and manage your career journey all in one place.
+A powerful web application to track, manage, and automate your job search process. Scrape jobs from multiple platforms, calculate match scores based on your CV, and manage all your applications in one place.
 
-![JobBot Pro](https://img.shields.io/badge/JobBot-Pro-green) ![React](https://img.shields.io/badge/React-18-blue) ![Vite](https://img.shields.io/badge/Vite-5-yellow)
+## Features
 
-## ✨ Features
+- **Dashboard**: Overview of your job search statistics and recent activities
+- **Job Scraper**: Scrape jobs from LinkedIn, Indeed, Glassdoor, and Naukri
+- **CV Management**: Upload and manage your CV/resume with automatic parsing
+- **Job List**: Browse scraped jobs with match scores
+- **Applications**: Track all your job applications with status updates
+- **Settings**: Customize your preferences
 
-- 🔍 **Smart Job Search** - Search across multiple job platforms
-- 🎯 **Advanced Filtering** - Filter by remote, salary, job type
-- 📊 **Application Tracking** - Track all your applications in one dashboard
-- 📈 **Interview Management** - Track interview stages and offers
-- 🎨 **Modern UI** - Beautiful, responsive dark-themed interface
+## Tech Stack
 
-## 🚀 Getting Started
+### Frontend
+- React.js
+- CSS3
+
+### Backend
+- Python
+- Flask
+
+## Installation
 
 ### Prerequisites
+- Node.js (v14 or higher)
+- Python (v3.8 or higher)
 
-- Node.js 18+ 
-- npm or yarn
-
-### Installation
-
+### Frontend Setup
 ```bash
-# Clone the repository
-git clone https://github.com/MaheshYadav-HiQ/automated-job-tracker.git
-
-# Navigate to project directory
-cd automated-job-tracker
-
-# Install dependencies
+cd frontend
 npm install
-
-# Start development server
-npm run dev
+npm start
 ```
 
-### Build for Production
-
+### Backend Setup
 ```bash
-npm run build
+cd backend
+pip install -r requirements.py
+python app.py
 ```
 
-## 🛠️ Tech Stack
+## Project Structure
 
-- **Frontend**: React 18, Vite
-- **Styling**: Custom CSS with modern features
-- **Icons**: Lucide React
-- **Deployment**: GitHub Pages / Vercel / Netlify
+```
+automated-job-tracker/
+├── frontend/
+│   ├── public/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── Dashboard.js
+│   │   │   ├── JobList.js
+│   │   │   ├── JobScraper.js
+│   │   │   ├── Applications.js
+│   │   │   ├── CVUploader.js
+│   │   │   ├── Settings.js
+│   │   │   └── Navbar.js
+│   │   ├── App.js
+│   │   ├── App.css
+│   │   └── index.js
+│   └── package.json
+├── backend/
+│   ├── app.py
+│   ├── scraper/
+│   └── requirements.py
+└── README.md
+```
 
-## 📱 Browser Support
+## Usage
 
-- Chrome (latest)
-- Firefox (latest)
-- Safari (latest)
-- Edge (latest)
+1. **Upload your CV**: Go to CV section and paste your resume text
+2. **Scrape Jobs**: Use the Job Scraper to find jobs from different platforms
+3. **View Matches**: Check the Job List to see match scores for each position
+4. **Track Applications**: Apply to jobs and track their status in Applications
 
-## 🔧 Configuration
+## License
 
-Edit `src/App.jsx` to customize:
-- Job data sources
-- Filter preferences
-- Application status workflow
-
-## 📄 License
-
-MIT License - feel free to use this project for your job search journey!
-
----
-
-Built with ❤️ by Mahesh Yadav
+MIT
